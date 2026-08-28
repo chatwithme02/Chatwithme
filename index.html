@@ -276,618 +276,955 @@
 
   <script type="module">
 
-    import {
-      initializeApp
-    } from
-      "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import {
+    initializeApp
+  } from
+    "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 
 
-    import {
-      getAuth,
-      signInWithEmailAndPassword,
-      signOut,
-      onAuthStateChanged
-    } from
-      "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+  import {
+    getAuth,
+    signInWithEmailAndPassword,
+    signOut,
+    onAuthStateChanged
+  } from
+    "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 
-    import {
-      getFirestore,
-      collection,
-      addDoc,
-      query,
-      orderBy,
-      onSnapshot,
-      serverTimestamp
-    } from
-      "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import {
+    getFirestore,
+    collection,
+    addDoc,
+    query,
+    orderBy,
+    onSnapshot,
+    serverTimestamp
+  } from
+    "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 
+  import {
+    getMessaging,
+    getToken,
+    onMessage
+  } from
+    "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js";
 
-    /* =========================
-       FIREBASE CONFIG
-       ========================= */
 
-    const firebaseConfig = {
+  /* =========================
+     FIREBASE CONFIG
+  ========================= */
 
-      apiKey:
-        "AIzaSyCJbM803t7UFreQ2UL9K_fiN5b3GoQbhpU",
+  const firebaseConfig = {
 
-      authDomain:
-        "chat-with-me-c641b.firebaseapp.com",
+    apiKey:
+      "AIzaSyCJbM803t7UFreQ2UL9K_fiN5b3GoQbhpU",
 
-      projectId:
-        "chat-with-me-c641b",
+    authDomain:
+      "chat-with-me-c641b.firebaseapp.com",
 
-      storageBucket:
-        "chat-with-me-c641b.firebasestorage.app",
+    projectId:
+      "chat-with-me-c641b",
 
-      messagingSenderId:
-        "61151214390",
+    storageBucket:
+      "chat-with-me-c641b.firebasestorage.app",
 
-      appId:
-        "1:61151214390:web:c2a41c8ff3a210f31f9197",
+    messagingSenderId:
+      "61151214390",
 
-      measurementId:
-        "G-8SLMV29ZN5"
+    appId:
+      "1:61151214390:web:c2a41c8ff3a210f31f9197",
+
+    measurementId:
+      "G-8SLMV29ZN5"
+
+  };
+
+
+  /* =========================
+     INITIALIZE FIREBASE
+  ========================= */
+
+  const app =
+    initializeApp(firebaseConfig);
+
+
+  const auth =
+    getAuth(app);
+
+
+  const db =
+    getFirestore(app);
+
+
+  const messaging =
+    getMessaging(app);
+
+
+  /* =========================
+     VAPID KEY
+  ========================= */
+
+  const VAPID_KEY =
+    "BCOfkRty7g6L6LnKZR8_NduUiWL5fXMDfKpADaGvaPPRIzlAKxv2mCvD10V-NpmNeGXnetnMlT2KoHqIHjR5oNs";
+
+
+  /* =========================
+     ALLOWED USERS
+  ========================= */
+
+  const ALLOWED_USERS = [
+
+    "stargazing803@gmail.com",
+
+    "jyotimatam2498@gmail.com"
+
+  ];
+
+
+  let currentUser = null;
+
+  let unsubscribeMessages = null;
+
+  let firstLoad = true;
+
+
+  /* =========================
+     NOTIFICATION SETUP
+  ========================= */
+
+  async function setupNotifications() {
+
+    if (!("serviceWorker" in navigator)) {
+
+      console.log(
+        "Service workers are not supported."
+      );
+
+      return;
+
+    }
+
+
+    if (!("Notification" in window)) {
+
+      console.log(
+        "Notifications are not supported."
+      );
+
+      return;
+
+    }
+
+
+    try {
+
+      const registration =
+        await navigator.serviceWorker.register(
+          "./firebase-messaging-sw.js"
+        );
+
+
+      console.log(
+        "Service Worker registered:",
+        registration
+      );
+
+
+      if (
+        Notification.permission === "default"
+      ) {
+
+        const permission =
+          await Notification.requestPermission();
+
+
+        console.log(
+          "Notification permission:",
+          permission
+        );
+
+      }
+
+
+      if (
+        Notification.permission === "granted"
+      ) {
+
+        const token =
+          await getToken(
+            messaging,
+            {
+
+              vapidKey:
+                VAPID_KEY,
+
+              serviceWorkerRegistration:
+                registration
+
+            }
+          );
+
+
+        if (token) {
+
+          console.log(
+            "FCM Token:",
+            token
+          );
+
+          localStorage.setItem(
+            "fcmToken",
+            token
+          );
+
+        }
+
+      }
+
+    } catch (error) {
+
+      console.error(
+        "Notification setup error:",
+        error
+      );
+
+    }
+
+  }
+
+
+  /* =========================
+     FOREGROUND FCM MESSAGE
+  ========================= */
+
+  onMessage(
+    messaging,
+    (payload) => {
+
+      console.log(
+        "Foreground notification:",
+        payload
+      );
+
+
+      const title =
+        payload.notification?.title ||
+        "New message";
+
+
+      const body =
+        payload.notification?.body ||
+        "You received a new message";
+
+
+      if (
+        Notification.permission ===
+        "granted"
+      ) {
+
+        new Notification(
+          title,
+          {
+            body: body
+          }
+        );
+
+      }
+
+    }
+  );
+
+
+  /* =========================
+     AUTH STATE
+  ========================= */
+
+  onAuthStateChanged(
+    auth,
+    async (user) => {
+
+      if (user) {
+
+        const email =
+          user.email.toLowerCase();
+
+
+        if (
+          !ALLOWED_USERS.includes(email)
+        ) {
+
+          await signOut(auth);
+
+
+          document
+            .getElementById(
+              "authMessage"
+            )
+            .textContent =
+            "You are not allowed to use this chat.";
+
+
+          return;
+
+        }
+
+
+        currentUser = user;
+
+
+        openChat();
+
+
+        setupNotifications();
+
+      }
+
+      else {
+
+        currentUser = null;
+
+        showLogin();
+
+      }
+
+    }
+  );
+
+
+  /* =========================
+     LOGIN
+  ========================= */
+
+  window.login =
+    async function () {
+
+      const email =
+        document
+          .getElementById("email")
+          .value
+          .trim()
+          .toLowerCase();
+
+
+      const password =
+        document
+          .getElementById("password")
+          .value;
+
+
+      const message =
+        document
+          .getElementById(
+            "authMessage"
+          );
+
+
+      const loginButton =
+        document
+          .getElementById(
+            "loginButton"
+          );
+
+
+      message.textContent = "";
+
+
+      if (!email || !password) {
+
+        message.textContent =
+          "Enter your email and password.";
+
+        return;
+
+      }
+
+
+      loginButton.disabled = true;
+
+      loginButton.textContent =
+        "Logging in...";
+
+
+      try {
+
+        const result =
+          await signInWithEmailAndPassword(
+            auth,
+            email,
+            password
+          );
+
+
+        const loggedInEmail =
+          result.user.email.toLowerCase();
+
+
+        if (
+          !ALLOWED_USERS.includes(
+            loggedInEmail
+          )
+        ) {
+
+          await signOut(auth);
+
+
+          message.textContent =
+            "You are not allowed to use this chat.";
+
+        }
+
+      }
+
+      catch (error) {
+
+        console.error(error);
+
+
+        message.textContent =
+          "Invalid email or password.";
+
+      }
+
+      finally {
+
+        loginButton.disabled = false;
+
+        loginButton.textContent =
+          "Login";
+
+      }
 
     };
 
 
+  /* =========================
+     OPEN CHAT
+  ========================= */
 
-    /* =========================
-       INITIALIZE FIREBASE
-       ========================= */
+  function openChat() {
 
-    const app =
-      initializeApp(firebaseConfig);
+    document
+      .getElementById(
+        "authScreen"
+      )
+      .style.display =
+      "none";
 
 
-    const auth =
-      getAuth(app);
+    document
+      .getElementById(
+        "chatScreen"
+      )
+      .style.display =
+      "flex";
 
 
-    const db =
-      getFirestore(app);
+    firstLoad = true;
 
 
+    subscribeToMessages();
 
-    /* =========================
-       ALLOWED USERS
-       ========================= */
+  }
 
-    const ALLOWED_USERS = [
 
-      "stargazing803@gmail.com",
+  /* =========================
+     SHOW LOGIN
+  ========================= */
 
-      "jyotimatam2498@gmail.com"
+  function showLogin() {
 
-    ];
+    if (
+      unsubscribeMessages
+    ) {
 
+      unsubscribeMessages();
 
-
-    let currentUser = null;
-
-    let unsubscribeMessages = null;
-
-
-
-    /* =========================
-       AUTH STATE
-       ========================= */
-
-    onAuthStateChanged(
-      auth,
-      async (user) => {
-
-        if (user) {
-
-          const email =
-            user.email.toLowerCase();
-
-
-          if (
-            !ALLOWED_USERS.includes(email)
-          ) {
-
-            await signOut(auth);
-
-            document
-              .getElementById("authMessage")
-              .textContent =
-              "You are not allowed to use this chat.";
-
-            return;
-
-          }
-
-
-          currentUser = user;
-
-          openChat();
-
-        } else {
-
-          currentUser = null;
-
-          showLogin();
-
-        }
-
-      }
-    );
-
-
-
-    /* =========================
-       LOGIN
-       ========================= */
-
-    window.login =
-      async function () {
-
-        const email =
-          document
-            .getElementById("email")
-            .value
-            .trim()
-            .toLowerCase();
-
-
-        const password =
-          document
-            .getElementById("password")
-            .value;
-
-
-        const message =
-          document
-            .getElementById("authMessage");
-
-
-        const loginButton =
-          document
-            .getElementById("loginButton");
-
-
-        message.textContent = "";
-
-
-        if (!email || !password) {
-
-          message.textContent =
-            "Enter your email and password.";
-
-          return;
-
-        }
-
-
-        loginButton.disabled = true;
-
-        loginButton.textContent =
-          "Logging in...";
-
-
-        try {
-
-          const result =
-            await signInWithEmailAndPassword(
-              auth,
-              email,
-              password
-            );
-
-
-          const loggedInEmail =
-            result.user.email.toLowerCase();
-
-
-          if (
-            !ALLOWED_USERS.includes(
-              loggedInEmail
-            )
-          ) {
-
-            await signOut(auth);
-
-            message.textContent =
-              "You are not allowed to use this chat.";
-
-          }
-
-
-        } catch (error) {
-
-          console.error(error);
-
-          message.textContent =
-            "Invalid email or password.";
-
-        } finally {
-
-          loginButton.disabled = false;
-
-          loginButton.textContent =
-            "Login";
-
-        }
-
-      };
-
-
-
-    /* =========================
-       OPEN CHAT
-       ========================= */
-
-    function openChat() {
-
-      document
-        .getElementById("authScreen")
-        .style.display =
-        "none";
-
-
-      document
-        .getElementById("chatScreen")
-        .style.display =
-        "flex";
-
-
-      subscribeToMessages();
+      unsubscribeMessages = null;
 
     }
 
 
-
-    /* =========================
-       SHOW LOGIN
-       ========================= */
-
-    function showLogin() {
-
-      if (unsubscribeMessages) {
-
-        unsubscribeMessages();
-
-        unsubscribeMessages = null;
-
-      }
+    document
+      .getElementById(
+        "chatScreen"
+      )
+      .style.display =
+      "none";
 
 
-      document
-        .getElementById("chatScreen")
-        .style.display =
-        "none";
+    document
+      .getElementById(
+        "authScreen"
+      )
+      .style.display =
+      "flex";
+
+  }
 
 
-      document
-        .getElementById("authScreen")
-        .style.display =
-        "flex";
+  /* =========================
+     SEND MESSAGE
+  ========================= */
 
-    }
+  window.sendMessage =
+    async function () {
 
+      if (!currentUser) {
 
-
-    /* =========================
-       SEND MESSAGE
-       ========================= */
-
-    window.sendMessage =
-      async function () {
-
-        if (!currentUser) {
-          return;
-        }
-
-
-        const input =
-          document
-            .getElementById(
-              "messageInput"
-            );
-
-
-        const body =
-          input.value.trim();
-
-
-        if (!body) {
-          return;
-        }
-
-
-        try {
-
-          await addDoc(
-            collection(
-              db,
-              "messages"
-            ),
-
-            {
-
-              senderId:
-                currentUser.uid,
-
-              senderEmail:
-                currentUser.email,
-
-              body:
-                body,
-
-              createdAt:
-                serverTimestamp()
-
-            }
-
-          );
-
-
-          input.value = "";
-
-
-        } catch (error) {
-
-          console.error(error);
-
-          alert(
-            "Could not send message: " +
-            error.message
-          );
-
-        }
-
-      };
-
-
-
-    /* =========================
-       LOAD REALTIME MESSAGES
-       ========================= */
-
-    function subscribeToMessages() {
-
-      if (unsubscribeMessages) {
-
-        unsubscribeMessages();
+        return;
 
       }
 
 
-      const messagesQuery =
-        query(
+      const input =
+        document
+          .getElementById(
+            "messageInput"
+          );
+
+
+      const body =
+        input.value.trim();
+
+
+      if (!body) {
+
+        return;
+
+      }
+
+
+      try {
+
+        await addDoc(
 
           collection(
             db,
             "messages"
           ),
 
-          orderBy(
-            "createdAt",
-            "asc"
-          )
+          {
+
+            senderId:
+              currentUser.uid,
+
+            senderEmail:
+              currentUser.email,
+
+            body:
+              body,
+
+            createdAt:
+              serverTimestamp()
+
+          }
 
         );
 
 
-      unsubscribeMessages =
-        onSnapshot(
-
-          messagesQuery,
-
-          (snapshot) => {
-
-            const messagesBox =
-              document
-                .getElementById(
-                  "messages"
-                );
+        input.value = "";
 
 
-            messagesBox.innerHTML = "";
+      }
+
+      catch (error) {
+
+        console.error(error);
 
 
-            snapshot.forEach(
-              (doc) => {
+        alert(
+          "Could not send message: " +
+          error.message
+        );
 
-                const message =
-                  doc.data();
+      }
+
+    };
 
 
-                addMessage(
-                  message
-                );
+  /* =========================
+     LOAD REALTIME MESSAGES
+  ========================= */
+
+  function subscribeToMessages() {
+
+    if (
+      unsubscribeMessages
+    ) {
+
+      unsubscribeMessages();
+
+    }
+
+
+    const messagesQuery =
+
+      query(
+
+        collection(
+          db,
+          "messages"
+        ),
+
+        orderBy(
+          "createdAt",
+          "asc"
+        )
+
+      );
+
+
+    unsubscribeMessages =
+
+      onSnapshot(
+
+        messagesQuery,
+
+        (snapshot) => {
+
+
+          const messagesBox =
+
+            document
+              .getElementById(
+                "messages"
+              );
+
+
+          /*
+             Detect new messages
+          */
+
+          if (
+            !firstLoad
+          ) {
+
+            snapshot.docChanges().forEach(
+              (change) => {
+
+                if (
+                  change.type ===
+                  "added"
+                ) {
+
+                  const message =
+                    change.doc.data();
+
+
+                  /*
+                     Only notify when
+                     the OTHER person
+                     sends a message
+                  */
+
+                  if (
+
+                    currentUser &&
+
+                    message.senderId !==
+                    currentUser.uid
+
+                  ) {
+
+                    showNewMessageNotification(
+                      message
+                    );
+
+                  }
+
+                }
 
               }
             );
 
-
-            scrollToBottom();
-
-          },
-
-
-          (error) => {
-
-            console.error(
-              "Firestore error:",
-              error
-            );
-
           }
 
-        );
 
-    }
-
+          messagesBox.innerHTML = "";
 
 
-    /* =========================
-       DISPLAY MESSAGE
-       ========================= */
+          snapshot.forEach(
+            (doc) => {
 
-    function addMessage(message) {
-
-      const messagesBox =
-        document
-          .getElementById(
-            "messages"
-          );
+              const message =
+                doc.data();
 
 
-      const div =
-        document.createElement(
-          "div"
-        );
-
-
-      div.className =
-        "message " +
-
-        (
-          message.senderId ===
-          currentUser.uid
-
-            ? "mine"
-
-            : "theirs"
-        );
-
-
-      const text =
-        document.createElement(
-          "div"
-        );
-
-
-      text.textContent =
-        message.body;
-
-
-      const time =
-        document.createElement(
-          "span"
-        );
-
-
-      time.className =
-        "time";
-
-
-      if (
-        message.createdAt
-      ) {
-
-        const date =
-          message.createdAt.toDate();
-
-
-        time.textContent =
-          date.toLocaleTimeString(
-            [],
-            {
-
-              hour:
-                "2-digit",
-
-              minute:
-                "2-digit"
+              addMessage(
+                message
+              );
 
             }
           );
 
-      } else {
 
-        time.textContent =
-          "Sending...";
-
-      }
+          scrollToBottom();
 
 
-      div.appendChild(text);
+          firstLoad = false;
 
-      div.appendChild(time);
-
-      messagesBox.appendChild(div);
-
-    }
+        },
 
 
+        (error) => {
 
-    /* =========================
-       SCROLL
-       ========================= */
-
-    function scrollToBottom() {
-
-      const messagesBox =
-        document
-          .getElementById(
-            "messages"
+          console.error(
+            "Firestore error:",
+            error
           );
 
+        }
 
-      messagesBox.scrollTop =
-        messagesBox.scrollHeight;
+      );
+
+  }
+
+
+  /* =========================
+     SHOW NEW MESSAGE
+     NOTIFICATION
+  ========================= */
+
+  function showNewMessageNotification(
+    message
+  ) {
+
+    if (
+      Notification.permission !==
+      "granted"
+    ) {
+
+      return;
 
     }
 
 
+    /*
+       Don't show notification
+       if user is actively looking
+       at the chat tab
+    */
 
-    /* =========================
-       ENTER KEY
-       ========================= */
+    if (
+      document.visibilityState ===
+      "visible"
+    ) {
 
-    document
-      .getElementById(
-        "messageInput"
-      )
+      return;
 
-      .addEventListener(
-        "keypress",
+    }
 
-        function (event) {
 
-          if (
-            event.key === "Enter"
-          ) {
+    const notification =
+      new Notification(
 
-            event.preventDefault();
+        "New message 💬",
 
-            sendMessage();
+        {
 
-          }
+          body:
+            message.body,
+
+          tag:
+            "chat-message"
 
         }
 
       );
 
 
+    notification.onclick =
+      function () {
 
-    /* =========================
-       LOGOUT
-       ========================= */
+        window.focus();
 
-    window.logout =
-      async function () {
-
-        try {
-
-          await signOut(auth);
-
-        } catch (error) {
-
-          console.error(error);
-
-        }
+        notification.close();
 
       };
 
+  }
 
-  </script>
+
+  /* =========================
+     DISPLAY MESSAGE
+  ========================= */
+
+  function addMessage(message) {
+
+    const messagesBox =
+
+      document
+        .getElementById(
+          "messages"
+        );
+
+
+    const div =
+      document.createElement(
+        "div"
+      );
+
+
+    div.className =
+
+      "message " +
+
+      (
+
+        message.senderId ===
+        currentUser.uid
+
+          ? "mine"
+
+          : "theirs"
+
+      );
+
+
+    const text =
+      document.createElement(
+        "div"
+      );
+
+
+    text.textContent =
+      message.body;
+
+
+    const time =
+      document.createElement(
+        "span"
+      );
+
+
+    time.className =
+      "time";
+
+
+    if (
+      message.createdAt
+    ) {
+
+      const date =
+        message.createdAt.toDate();
+
+
+      time.textContent =
+
+        date.toLocaleTimeString(
+
+          [],
+
+          {
+
+            hour:
+              "2-digit",
+
+            minute:
+              "2-digit"
+
+          }
+
+        );
+
+    }
+
+    else {
+
+      time.textContent =
+        "Sending...";
+
+    }
+
+
+    div.appendChild(text);
+
+    div.appendChild(time);
+
+
+    messagesBox.appendChild(
+      div
+    );
+
+  }
+
+
+  /* =========================
+     SCROLL
+  ========================= */
+
+  function scrollToBottom() {
+
+    const messagesBox =
+
+      document
+        .getElementById(
+          "messages"
+        );
+
+
+    messagesBox.scrollTop =
+      messagesBox.scrollHeight;
+
+  }
+
+
+  /* =========================
+     ENTER KEY
+  ========================= */
+
+  document
+    .getElementById(
+      "messageInput"
+    )
+    .addEventListener(
+
+      "keypress",
+
+      function (event) {
+
+        if (
+          event.key === "Enter"
+        ) {
+
+          event.preventDefault();
+
+          sendMessage();
+
+        }
+
+      }
+
+    );
+
+
+  /* =========================
+     LOGOUT
+  ========================= */
+
+  window.logout =
+    async function () {
+
+      try {
+
+        await signOut(
+          auth
+        );
+
+      }
+
+      catch (error) {
+
+        console.error(
+          error
+        );
+
+      }
+
+    };
+
+</script>
 
 
 </body>
