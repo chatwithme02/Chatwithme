@@ -88,7 +88,6 @@
       text-align: center;
     }
 
-
     /* CHAT SCREEN */
 
     #chatScreen {
@@ -259,9 +258,11 @@
   </div>
 
 
-  <!-- FIREBASE -->
-
   <script type="module">
+
+    /* =========================
+       FIREBASE IMPORTS
+    ========================= */
 
     import {
       initializeApp
@@ -299,7 +300,9 @@
       "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js";
 
 
-    /* FIREBASE CONFIG */
+    /* =========================
+       FIREBASE CONFIG
+    ========================= */
 
     const firebaseConfig = {
 
@@ -327,7 +330,9 @@
     };
 
 
-    /* INITIALIZE FIREBASE */
+    /* =========================
+       INITIALIZE FIREBASE
+    ========================= */
 
     const app =
       initializeApp(firebaseConfig);
@@ -341,17 +346,36 @@
       getFirestore(app);
 
 
-    const messaging =
-      getMessaging(app);
+    let messaging = null;
+
+    try {
+
+      messaging =
+        getMessaging(app);
+
+    }
+
+    catch (error) {
+
+      console.log(
+        "Firebase Messaging is not supported:",
+        error
+      );
+
+    }
 
 
-    /* VAPID KEY */
+    /* =========================
+       VAPID KEY
+    ========================= */
 
     const VAPID_KEY =
       "BCOfkRty7g6L6LnKZR8_NduUiWL5fXMDfKpADaGvaPPRIzlAKxv2mCvD10V-NpmNeGXnetnMlT2KoHqIHjR5oNs";
 
 
-    /* ALLOWED USERS */
+    /* =========================
+       ALLOWED USERS
+    ========================= */
 
     const ALLOWED_USERS = [
 
@@ -369,32 +393,25 @@
     let firstLoad = true;
 
 
-    /* NOTIFICATION SETUP */
+    /* =========================
+       NOTIFICATION SETUP
+    ========================= */
 
     async function setupNotifications(user) {
 
       try {
 
-        if (!("serviceWorker" in navigator)) {
+        if (
+          !("Notification" in window)
+        ) {
 
           console.log(
-            "Service workers are not supported."
+            "Notifications are not supported."
           );
 
           return;
 
         }
-
-
-        const registration =
-          await navigator.serviceWorker.register(
-            "./firebase-messaging-sw.js"
-          );
-
-
-        console.log(
-          "Service Worker registered."
-        );
 
 
         if (
@@ -410,7 +427,7 @@
           ) {
 
             console.log(
-              "Notification permission not granted."
+              "Notification permission denied."
             );
 
             return;
@@ -433,11 +450,56 @@
         }
 
 
+        console.log(
+          "Notification permission granted."
+        );
+
+
+        /* Register service worker */
+
+        if (
+          !("serviceWorker" in navigator)
+        ) {
+
+          console.log(
+            "Service workers are not supported."
+          );
+
+          return;
+
+        }
+
+
+        const registration =
+          await navigator.serviceWorker.register(
+            "./firebase-messaging-sw.js"
+          );
+
+
+        await navigator.serviceWorker.ready;
+
+
+        console.log(
+          "Service worker ready."
+        );
+
+
+        /* Get FCM token */
+
+        if (!messaging) {
+
+          console.log(
+            "Firebase Messaging unavailable."
+          );
+
+          return;
+
+        }
+
+
         const token =
           await getToken(
-
             messaging,
-
             {
 
               vapidKey:
@@ -447,11 +509,16 @@
                 registration
 
             }
-
           );
 
 
         if (token) {
+
+          console.log(
+            "FCM TOKEN:",
+            token
+          );
+
 
           await setDoc(
 
@@ -467,14 +534,16 @@
                 user.email,
 
               fcmToken:
-                token
+                token,
+
+              updatedAt:
+                serverTimestamp()
 
             },
 
             {
 
-              merge:
-                true
+              merge: true
 
             }
 
@@ -482,7 +551,7 @@
 
 
           console.log(
-            "FCM token saved successfully."
+            "Notification token saved successfully."
           );
 
         }
@@ -490,7 +559,7 @@
         else {
 
           console.log(
-            "Could not get FCM token."
+            "No FCM token received."
           );
 
         }
@@ -509,7 +578,9 @@
     }
 
 
-    /* AUTH STATE */
+    /* =========================
+       AUTH STATE
+    ========================= */
 
     onAuthStateChanged(
 
@@ -520,7 +591,8 @@
         if (user) {
 
           const email =
-            user.email.toLowerCase();
+            user.email
+              .toLowerCase();
 
 
           if (
@@ -535,7 +607,7 @@
                 "authMessage"
               )
               .textContent =
-              "You are not allowed to use this chat.";
+                "You are not allowed to use this chat.";
 
 
             return;
@@ -550,7 +622,11 @@
           openChat();
 
 
-          setupNotifications(user);
+          /* Setup notifications */
+
+          await setupNotifications(
+            user
+          );
 
         }
 
@@ -569,14 +645,18 @@
     );
 
 
-    /* LOGIN */
+    /* =========================
+       LOGIN
+    ========================= */
 
     window.login =
       async function () {
 
         const email =
           document
-            .getElementById("email")
+            .getElementById(
+              "email"
+            )
             .value
             .trim()
             .toLowerCase();
@@ -584,7 +664,9 @@
 
         const password =
           document
-            .getElementById("password")
+            .getElementById(
+              "password"
+            )
             .value;
 
 
@@ -632,7 +714,9 @@
           await signInWithEmailAndPassword(
 
             auth,
+
             email,
+
             password
 
           );
@@ -663,7 +747,9 @@
       };
 
 
-    /* OPEN CHAT */
+    /* =========================
+       OPEN CHAT
+    ========================= */
 
     function openChat() {
 
@@ -672,7 +758,7 @@
           "authScreen"
         )
         .style.display =
-        "none";
+          "none";
 
 
       document
@@ -680,7 +766,7 @@
           "chatScreen"
         )
         .style.display =
-        "flex";
+          "flex";
 
 
       firstLoad =
@@ -692,7 +778,9 @@
     }
 
 
-    /* SHOW LOGIN */
+    /* =========================
+       SHOW LOGIN
+    ========================= */
 
     function showLogin() {
 
@@ -701,6 +789,7 @@
       ) {
 
         unsubscribeMessages();
+
 
         unsubscribeMessages =
           null;
@@ -713,7 +802,7 @@
           "chatScreen"
         )
         .style.display =
-        "none";
+          "none";
 
 
       document
@@ -721,12 +810,14 @@
           "authScreen"
         )
         .style.display =
-        "flex";
+          "flex";
 
     }
 
 
-    /* SEND MESSAGE */
+    /* =========================
+       SEND MESSAGE
+    ========================= */
 
     window.sendMessage =
       async function () {
@@ -746,7 +837,8 @@
 
 
         const body =
-          input.value.trim();
+          input.value
+            .trim();
 
 
         if (!body) {
@@ -806,7 +898,9 @@
       };
 
 
-    /* REALTIME MESSAGES */
+    /* =========================
+       REALTIME MESSAGES
+    ========================= */
 
     function subscribeToMessages() {
 
@@ -844,6 +938,52 @@
 
           (snapshot) => {
 
+
+            /* Detect new messages */
+
+            if (!firstLoad) {
+
+              snapshot
+                .docChanges()
+                .forEach(
+
+                  (change) => {
+
+                    if (
+                      change.type ===
+                      "added"
+                    ) {
+
+                      const message =
+                        change.doc.data();
+
+
+                      if (
+
+                        currentUser &&
+
+                        message.senderId !==
+                        currentUser.uid
+
+                      ) {
+
+                        showNewMessageNotification(
+                          message
+                        );
+
+                      }
+
+                    }
+
+                  }
+
+                );
+
+            }
+
+
+            /* Display messages */
+
             const messagesBox =
 
               document
@@ -852,59 +992,16 @@
                 );
 
 
-            /* DETECT NEW MESSAGES */
-
-            if (
-              !firstLoad
-            ) {
-
-              snapshot.docChanges().forEach(
-
-                (change) => {
-
-                  if (
-                    change.type ===
-                    "added"
-                  ) {
-
-                    const message =
-                      change.doc.data();
-
-
-                    if (
-
-                      currentUser &&
-
-                      message.senderId !==
-                      currentUser.uid
-
-                    ) {
-
-                      showNewMessageNotification(
-                        message
-                      );
-
-                    }
-
-                  }
-
-                }
-
-              );
-
-            }
-
-
             messagesBox.innerHTML =
               "";
 
 
             snapshot.forEach(
 
-              (doc) => {
+              (messageDoc) => {
 
                 addMessage(
-                  doc.data()
+                  messageDoc.data()
                 );
 
               }
@@ -920,6 +1017,7 @@
 
           },
 
+
           (error) => {
 
             console.error(
@@ -934,72 +1032,90 @@
     }
 
 
-    /* SHOW BROWSER NOTIFICATION */
+    /* =========================
+       SHOW NOTIFICATION
+    ========================= */
 
     function showNewMessageNotification(message) {
 
       if (
+
+        !("Notification" in window) ||
+
         Notification.permission !==
         "granted"
+
       ) {
 
-        return;
-
-      }
-
-
-      /*
-        Only notify when the
-        chat tab is in background
-      */
-
-      if (
-        document.visibilityState ===
-        "visible"
-      ) {
-
-        return;
-
-      }
-
-
-      const notification =
-
-        new Notification(
-
-          "New message 💬",
-
-          {
-
-            body:
-              message.body,
-
-            tag:
-              "chat-message"
-
-          }
-
+        console.log(
+          "Notification permission not granted."
         );
 
+        return;
 
-      notification.onclick =
-        function () {
+      }
 
-          window.focus();
 
-          notification.close();
+      console.log(
+        "NEW MESSAGE RECEIVED:",
+        message.body
+      );
 
-        };
+
+      try {
+
+        const notification =
+
+          new Notification(
+
+            "New message 💬",
+
+            {
+
+              body:
+                message.body,
+
+              tag:
+                "chat-message",
+
+              renotify:
+                true
+
+            }
+
+          );
+
+
+        notification.onclick =
+          function () {
+
+            window.focus();
+
+            notification.close();
+
+          };
+
+      }
+
+      catch (error) {
+
+        console.error(
+          "Notification error:",
+          error
+        );
+
+      }
 
     }
 
 
-    /* DISPLAY MESSAGE */
+    /* =========================
+       DISPLAY MESSAGE
+    ========================= */
 
     function addMessage(message) {
 
       const messagesBox =
-
         document
           .getElementById(
             "messages"
@@ -1007,7 +1123,6 @@
 
 
       const div =
-
         document.createElement(
           "div"
         );
@@ -1030,7 +1145,6 @@
 
 
       const text =
-
         document.createElement(
           "div"
         );
@@ -1041,7 +1155,6 @@
 
 
       const time =
-
         document.createElement(
           "span"
         );
@@ -1056,7 +1169,9 @@
       ) {
 
         const date =
-          message.createdAt.toDate();
+          message
+            .createdAt
+            .toDate();
 
 
         time.textContent =
@@ -1092,17 +1207,20 @@
       div.appendChild(time);
 
 
-      messagesBox.appendChild(div);
+      messagesBox.appendChild(
+        div
+      );
 
     }
 
 
-    /* SCROLL */
+    /* =========================
+       SCROLL
+    ========================= */
 
     function scrollToBottom() {
 
       const messagesBox =
-
         document
           .getElementById(
             "messages"
@@ -1115,7 +1233,9 @@
     }
 
 
-    /* ENTER KEY */
+    /* =========================
+       ENTER KEY
+    ========================= */
 
     document
       .getElementById(
@@ -1143,7 +1263,9 @@
       );
 
 
-    /* LOGOUT */
+    /* =========================
+       LOGOUT
+    ========================= */
 
     window.logout =
       async function () {
@@ -1163,7 +1285,6 @@
       };
 
   </script>
-
 
 </body>
 
