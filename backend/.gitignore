@@ -1,0 +1,27 @@
+venv/
+__pycache__/
+*.pyc
+.env
+*.db
+
+# Python
+backend/venv/
+backend/__pycache__/
+**/__pycache__/
+*.pyc
+
+# Secrets
+backend/.env
+.env
+
+# SQLite
+*.db
+
+# Node
+frontend/node_modules/
+
+# Vite
+frontend/dist/
+
+# VS Code
+.vscode/
