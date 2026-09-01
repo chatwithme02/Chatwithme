@@ -1,0 +1,1291 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>Chat With Me</title>
+
+  <style>
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f3f4f6;
+      height: 100vh;
+    }
+
+    #authScreen,
+    #chatScreen {
+      min-height: 100vh;
+    }
+
+    /* LOGIN SCREEN */
+
+    #authScreen {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .auth-box {
+      width: 100%;
+      max-width: 400px;
+      background: white;
+      padding: 30px;
+      border-radius: 18px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
+
+    h1 {
+      text-align: center;
+      margin-top: 0;
+    }
+
+    input,
+    button {
+      width: 100%;
+      padding: 14px;
+      margin-top: 12px;
+      border-radius: 10px;
+      font-size: 16px;
+    }
+
+    input {
+      border: 1px solid #ddd;
+    }
+
+    button {
+      border: none;
+      cursor: pointer;
+      background: #2563eb;
+      color: white;
+      font-weight: bold;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .error {
+      color: red;
+      margin-top: 12px;
+      text-align: center;
+    }
+
+    /* CHAT SCREEN */
+
+    #chatScreen {
+      display: none;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    .header {
+      background: #2563eb;
+      color: white;
+      padding: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header h2 {
+      margin: 0;
+      font-size: 20px;
+    }
+
+    .logout {
+      width: auto;
+      margin: 0;
+      padding: 8px 14px;
+      background: #dc2626;
+    }
+
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .message {
+      max-width: 75%;
+      padding: 10px 14px;
+      border-radius: 16px;
+      word-wrap: break-word;
+    }
+
+    .mine {
+      align-self: flex-end;
+      background: #2563eb;
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+
+    .theirs {
+      align-self: flex-start;
+      background: white;
+      color: black;
+      border-bottom-left-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .time {
+      display: block;
+      font-size: 11px;
+      margin-top: 5px;
+      opacity: 0.7;
+    }
+
+    .message-form {
+      display: flex;
+      padding: 10px;
+      background: white;
+      border-top: 1px solid #ddd;
+      gap: 8px;
+    }
+
+    .message-form input {
+      margin: 0;
+      flex: 1;
+    }
+
+    .message-form button {
+      width: auto;
+      margin: 0;
+      padding: 0 20px;
+    }
+
+  </style>
+
+</head>
+
+
+<body>
+
+
+  <!-- LOGIN SCREEN -->
+
+  <div id="authScreen">
+
+    <div class="auth-box">
+
+      <h1>Chat With Me</h1>
+
+      <input
+        type="email"
+        id="email"
+        placeholder="Email address"
+      >
+
+      <input
+        type="password"
+        id="password"
+        placeholder="Password"
+      >
+
+      <button
+        id="loginButton"
+        onclick="login()"
+      >
+        Login
+      </button>
+
+      <p
+        id="authMessage"
+        class="error"
+      ></p>
+
+    </div>
+
+  </div>
+
+
+  <!-- CHAT SCREEN -->
+
+  <div id="chatScreen">
+
+    <div class="header">
+
+      <h2>Private Chat</h2>
+
+      <button
+        class="logout"
+        onclick="logout()"
+      >
+        Logout
+      </button>
+
+    </div>
+
+
+    <div id="messages"></div>
+
+
+    <div class="message-form">
+
+      <input
+        type="text"
+        id="messageInput"
+        placeholder="Type a message..."
+        maxlength="4000"
+      >
+
+      <button onclick="sendMessage()">
+        Send
+      </button>
+
+    </div>
+
+  </div>
+
+
+  <script type="module">
+
+    /* =========================
+       FIREBASE IMPORTS
+    ========================= */
+
+    import {
+      initializeApp
+    } from
+      "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+
+
+    import {
+      getAuth,
+      signInWithEmailAndPassword,
+      signOut,
+      onAuthStateChanged
+    } from
+      "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+
+    import {
+      getFirestore,
+      collection,
+      addDoc,
+      query,
+      orderBy,
+      onSnapshot,
+      serverTimestamp,
+      doc,
+      setDoc
+    } from
+      "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+
+    import {
+      getMessaging,
+      getToken
+    } from
+      "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js";
+
+
+    /* =========================
+       FIREBASE CONFIG
+    ========================= */
+
+    const firebaseConfig = {
+
+      apiKey:
+        "AIzaSyCJbM803t7UFreQ2UL9K_fiN5b3GoQbhpU",
+
+      authDomain:
+        "chat-with-me-c641b.firebaseapp.com",
+
+      projectId:
+        "chat-with-me-c641b",
+
+      storageBucket:
+        "chat-with-me-c641b.firebasestorage.app",
+
+      messagingSenderId:
+        "61151214390",
+
+      appId:
+        "1:61151214390:web:c2a41c8ff3a210f31f9197",
+
+      measurementId:
+        "G-8SLMV29ZN5"
+
+    };
+
+
+    /* =========================
+       INITIALIZE FIREBASE
+    ========================= */
+
+    const app =
+      initializeApp(firebaseConfig);
+
+
+    const auth =
+      getAuth(app);
+
+
+    const db =
+      getFirestore(app);
+
+
+    let messaging = null;
+
+    try {
+
+      messaging =
+        getMessaging(app);
+
+    }
+
+    catch (error) {
+
+      console.log(
+        "Firebase Messaging is not supported:",
+        error
+      );
+
+    }
+
+
+    /* =========================
+       VAPID KEY
+    ========================= */
+
+    const VAPID_KEY =
+      "BCOfkRty7g6L6LnKZR8_NduUiWL5fXMDfKpADaGvaPPRIzlAKxv2mCvD10V-NpmNeGXnetnMlT2KoHqIHjR5oNs";
+
+
+    /* =========================
+       ALLOWED USERS
+    ========================= */
+
+    const ALLOWED_USERS = [
+
+      "stargazing803@gmail.com",
+
+      "jyotimatam2498@gmail.com"
+
+    ];
+
+
+    let currentUser = null;
+
+    let unsubscribeMessages = null;
+
+    let firstLoad = true;
+
+
+    /* =========================
+       NOTIFICATION SETUP
+    ========================= */
+
+    async function setupNotifications(user) {
+
+      try {
+
+        if (
+          !("Notification" in window)
+        ) {
+
+          console.log(
+            "Notifications are not supported."
+          );
+
+          return;
+
+        }
+
+
+        if (
+          Notification.permission === "default"
+        ) {
+
+          const permission =
+            await Notification.requestPermission();
+
+
+          if (
+            permission !== "granted"
+          ) {
+
+            console.log(
+              "Notification permission denied."
+            );
+
+            return;
+
+          }
+
+        }
+
+
+        if (
+          Notification.permission !== "granted"
+        ) {
+
+          console.log(
+            "Notifications are blocked."
+          );
+
+          return;
+
+        }
+
+
+        console.log(
+          "Notification permission granted."
+        );
+
+
+        /* Register service worker */
+
+        if (
+          !("serviceWorker" in navigator)
+        ) {
+
+          console.log(
+            "Service workers are not supported."
+          );
+
+          return;
+
+        }
+
+
+        const registration =
+          await navigator.serviceWorker.register(
+            "./firebase-messaging-sw.js"
+          );
+
+
+        await navigator.serviceWorker.ready;
+
+
+        console.log(
+          "Service worker ready."
+        );
+
+
+        /* Get FCM token */
+
+        if (!messaging) {
+
+          console.log(
+            "Firebase Messaging unavailable."
+          );
+
+          return;
+
+        }
+
+
+        const token =
+          await getToken(
+            messaging,
+            {
+
+              vapidKey:
+                VAPID_KEY,
+
+              serviceWorkerRegistration:
+                registration
+
+            }
+          );
+
+
+        if (token) {
+
+          console.log(
+            "FCM TOKEN:",
+            token
+          );
+
+
+          await setDoc(
+
+            doc(
+              db,
+              "users",
+              user.uid
+            ),
+
+            {
+
+              email:
+                user.email,
+
+              fcmToken:
+                token,
+
+              updatedAt:
+                serverTimestamp()
+
+            },
+
+            {
+
+              merge: true
+
+            }
+
+          );
+
+
+          console.log(
+            "Notification token saved successfully."
+          );
+
+        }
+
+        else {
+
+          console.log(
+            "No FCM token received."
+          );
+
+        }
+
+      }
+
+      catch (error) {
+
+        console.error(
+          "Notification setup error:",
+          error
+        );
+
+      }
+
+    }
+
+
+    /* =========================
+       AUTH STATE
+    ========================= */
+
+    onAuthStateChanged(
+
+      auth,
+
+      async (user) => {
+
+        if (user) {
+
+          const email =
+            user.email
+              .toLowerCase();
+
+
+          if (
+            !ALLOWED_USERS.includes(email)
+          ) {
+
+            await signOut(auth);
+
+
+            document
+              .getElementById(
+                "authMessage"
+              )
+              .textContent =
+                "You are not allowed to use this chat.";
+
+
+            return;
+
+          }
+
+
+          currentUser =
+            user;
+
+
+          openChat();
+
+
+          /* Setup notifications */
+
+          await setupNotifications(
+            user
+          );
+
+        }
+
+        else {
+
+          currentUser =
+            null;
+
+
+          showLogin();
+
+        }
+
+      }
+
+    );
+
+
+    /* =========================
+       LOGIN
+    ========================= */
+
+    window.login =
+      async function () {
+
+        const email =
+          document
+            .getElementById(
+              "email"
+            )
+            .value
+            .trim()
+            .toLowerCase();
+
+
+        const password =
+          document
+            .getElementById(
+              "password"
+            )
+            .value;
+
+
+        const message =
+          document
+            .getElementById(
+              "authMessage"
+            );
+
+
+        const loginButton =
+          document
+            .getElementById(
+              "loginButton"
+            );
+
+
+        message.textContent =
+          "";
+
+
+        if (
+          !email ||
+          !password
+        ) {
+
+          message.textContent =
+            "Enter your email and password.";
+
+          return;
+
+        }
+
+
+        loginButton.disabled =
+          true;
+
+
+        loginButton.textContent =
+          "Logging in...";
+
+
+        try {
+
+          await signInWithEmailAndPassword(
+
+            auth,
+
+            email,
+
+            password
+
+          );
+
+        }
+
+        catch (error) {
+
+          console.error(error);
+
+
+          message.textContent =
+            "Invalid email or password.";
+
+        }
+
+        finally {
+
+          loginButton.disabled =
+            false;
+
+
+          loginButton.textContent =
+            "Login";
+
+        }
+
+      };
+
+
+    /* =========================
+       OPEN CHAT
+    ========================= */
+
+    function openChat() {
+
+      document
+        .getElementById(
+          "authScreen"
+        )
+        .style.display =
+          "none";
+
+
+      document
+        .getElementById(
+          "chatScreen"
+        )
+        .style.display =
+          "flex";
+
+
+      firstLoad =
+        true;
+
+
+      subscribeToMessages();
+
+    }
+
+
+    /* =========================
+       SHOW LOGIN
+    ========================= */
+
+    function showLogin() {
+
+      if (
+        unsubscribeMessages
+      ) {
+
+        unsubscribeMessages();
+
+
+        unsubscribeMessages =
+          null;
+
+      }
+
+
+      document
+        .getElementById(
+          "chatScreen"
+        )
+        .style.display =
+          "none";
+
+
+      document
+        .getElementById(
+          "authScreen"
+        )
+        .style.display =
+          "flex";
+
+    }
+
+
+    /* =========================
+       SEND MESSAGE
+    ========================= */
+
+    window.sendMessage =
+      async function () {
+
+        if (!currentUser) {
+
+          return;
+
+        }
+
+
+        const input =
+          document
+            .getElementById(
+              "messageInput"
+            );
+
+
+        const body =
+          input.value
+            .trim();
+
+
+        if (!body) {
+
+          return;
+
+        }
+
+
+        try {
+
+          await addDoc(
+
+            collection(
+              db,
+              "messages"
+            ),
+
+            {
+
+              senderId:
+                currentUser.uid,
+
+              senderEmail:
+                currentUser.email,
+
+              body:
+                body,
+
+              createdAt:
+                serverTimestamp()
+
+            }
+
+          );
+
+
+          input.value =
+            "";
+
+        }
+
+        catch (error) {
+
+          console.error(error);
+
+
+          alert(
+
+            "Could not send message: " +
+            error.message
+
+          );
+
+        }
+
+      };
+
+
+    /* =========================
+       REALTIME MESSAGES
+    ========================= */
+
+    function subscribeToMessages() {
+
+      if (
+        unsubscribeMessages
+      ) {
+
+        unsubscribeMessages();
+
+      }
+
+
+      const messagesQuery =
+
+        query(
+
+          collection(
+            db,
+            "messages"
+          ),
+
+          orderBy(
+            "createdAt",
+            "asc"
+          )
+
+        );
+
+
+      unsubscribeMessages =
+
+        onSnapshot(
+
+          messagesQuery,
+
+          (snapshot) => {
+
+
+            /* Detect new messages */
+
+            if (!firstLoad) {
+
+              snapshot
+                .docChanges()
+                .forEach(
+
+                  (change) => {
+
+                    if (
+                      change.type ===
+                      "added"
+                    ) {
+
+                      const message =
+                        change.doc.data();
+
+
+                      if (
+
+                        currentUser &&
+
+                        message.senderId !==
+                        currentUser.uid
+
+                      ) {
+
+                        showNewMessageNotification(
+                          message
+                        );
+
+                      }
+
+                    }
+
+                  }
+
+                );
+
+            }
+
+
+            /* Display messages */
+
+            const messagesBox =
+
+              document
+                .getElementById(
+                  "messages"
+                );
+
+
+            messagesBox.innerHTML =
+              "";
+
+
+            snapshot.forEach(
+
+              (messageDoc) => {
+
+                addMessage(
+                  messageDoc.data()
+                );
+
+              }
+
+            );
+
+
+            scrollToBottom();
+
+
+            firstLoad =
+              false;
+
+          },
+
+
+          (error) => {
+
+            console.error(
+              "Firestore error:",
+              error
+            );
+
+          }
+
+        );
+
+    }
+
+
+    /* =========================
+       SHOW NOTIFICATION
+    ========================= */
+
+    function showNewMessageNotification(message) {
+
+      if (
+
+        !("Notification" in window) ||
+
+        Notification.permission !==
+        "granted"
+
+      ) {
+
+        console.log(
+          "Notification permission not granted."
+        );
+
+        return;
+
+      }
+
+
+      console.log(
+        "NEW MESSAGE RECEIVED:",
+        message.body
+      );
+
+
+      try {
+
+        const notification =
+
+          new Notification(
+
+            "New message 💬",
+
+            {
+
+              body:
+                message.body,
+
+              tag:
+                "chat-message",
+
+              renotify:
+                true
+
+            }
+
+          );
+
+
+        notification.onclick =
+          function () {
+
+            window.focus();
+
+            notification.close();
+
+          };
+
+      }
+
+      catch (error) {
+
+        console.error(
+          "Notification error:",
+          error
+        );
+
+      }
+
+    }
+
+
+    /* =========================
+       DISPLAY MESSAGE
+    ========================= */
+
+    function addMessage(message) {
+
+      const messagesBox =
+        document
+          .getElementById(
+            "messages"
+          );
+
+
+      const div =
+        document.createElement(
+          "div"
+        );
+
+
+      div.className =
+
+        "message " +
+
+        (
+
+          message.senderId ===
+          currentUser.uid
+
+            ? "mine"
+
+            : "theirs"
+
+        );
+
+
+      const text =
+        document.createElement(
+          "div"
+        );
+
+
+      text.textContent =
+        message.body;
+
+
+      const time =
+        document.createElement(
+          "span"
+        );
+
+
+      time.className =
+        "time";
+
+
+      if (
+        message.createdAt
+      ) {
+
+        const date =
+          message
+            .createdAt
+            .toDate();
+
+
+        time.textContent =
+
+          date.toLocaleTimeString(
+
+            [],
+
+            {
+
+              hour:
+                "2-digit",
+
+              minute:
+                "2-digit"
+
+            }
+
+          );
+
+      }
+
+      else {
+
+        time.textContent =
+          "Sending...";
+
+      }
+
+
+      div.appendChild(text);
+
+      div.appendChild(time);
+
+
+      messagesBox.appendChild(
+        div
+      );
+
+    }
+
+
+    /* =========================
+       SCROLL
+    ========================= */
+
+    function scrollToBottom() {
+
+      const messagesBox =
+        document
+          .getElementById(
+            "messages"
+          );
+
+
+      messagesBox.scrollTop =
+        messagesBox.scrollHeight;
+
+    }
+
+
+    /* =========================
+       ENTER KEY
+    ========================= */
+
+    document
+      .getElementById(
+        "messageInput"
+      )
+      .addEventListener(
+
+        "keypress",
+
+        function (event) {
+
+          if (
+            event.key ===
+            "Enter"
+          ) {
+
+            event.preventDefault();
+
+            sendMessage();
+
+          }
+
+        }
+
+      );
+
+
+    /* =========================
+       LOGOUT
+    ========================= */
+
+    window.logout =
+      async function () {
+
+        try {
+
+          await signOut(auth);
+
+        }
+
+        catch (error) {
+
+          console.error(error);
+
+        }
+
+      };
+
+  </script>
+
+</body>
+
+</html>
