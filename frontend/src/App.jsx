@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
 
-const API_URL = "http://127.0.0.1:8000";
-const WS_URL = "ws://127.0.0.1:8000";
+const API_URL = "https://chatwithme-3ade.onrender.com";
+const WS_URL = "wss://chatwithme-3ade.onrender.com";
 
 function App() {
   const [user, setUser] = useState(null);
